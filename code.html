@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terminal Highlight</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="hightlight/monokai.css">
+    <link rel="stylesheet" href="terminal.css">
+    <script src="hightlight/highlight.pack.js"></script>
+    <script src="html2canvas.min.js"></script>
+</head>
+<body>
+<div class="box">
+    <div class="left">
+        <div style="width: 100%;">
+            <textarea id="source_code" rows="20" style="width: 100%"></textarea>
+            <button onclick="export_img()">导出图片</button>
+        </div>
+    </div>
+    <div class="right">
+        <div id="format_code" style="width: 100%;color: rgba(255, 255, 255, 0);"></div>
+    </div>
+</div>
+<dialog id="img"></dialog>
+<script>
+    function export_img() {
+        html2canvas(document.querySelector(".highlight-wrap"), {
+            backgroundColor: null
+        }).then(canvas => {
+            var context = canvas.getContext("2d");
+
+            //圆角矩形
+            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+                var min_size = Math.min(w, h);
+                if (r > min_size / 2) r = min_size / 2;
+                // 开始绘制
+                this.beginPath();
+                this.moveTo(x + r, y);
+                this.arcTo(x + w, y, x + w, y + h, r);
+                this.arcTo(x + w, y + h, x, y + h, r);
+                this.arcTo(x, y + h, x, y, r);
+                this.arcTo(x, y, x + w, y, r);
+                this.closePath();
+                return this;
+            };
+
+            image = new Image();
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            context.roundRect(0, 0, image.width, image.height, 50);
+            context.fillStyle = context.createPattern(image, "no-repeat");
+            context.fill();
+
+            document.getElementById("img").appendChild(canvas);
+            document.getElementById("img").open = true;
+        });
+    }
+
+    document.getElementById("source_code").addEventListener("input", function () {
+        txt = document.getElementById("source_code").value;
+
+        // 获取代码信息
+        let LANG = "";
+        let CODE = "";
+        if (txt.startsWith("```") && txt.endsWith("```")) {
+            LANG = txt.substring(3, txt.indexOf("\n"));
+            CODE = txt.substring(txt.indexOf("\n") + 1, txt.lastIndexOf("```"));
+        } else {
+            return;
+        }
+
+        // 构造左侧行号
+        let index_ele = "";
+        for (let index = 1; index < CODE.split("\n").length; index++) {
+            index_ele += "<span>" + index + "</span><br>";
+        }
+
+        // 创建document
+        document.getElementById("format_code").innerHTML =
+            "<div class=\"highlight-wrap\" data-rel=\"" + LANG.toUpperCase() + "\">\n" +
+            "    <table>\n" +
+            "        <tbody>\n" +
+            "            <tr>\n" +
+            "                <td class=\"gutter\">\n" +
+            "                    <pre>" + index_ele + "</pre>\n" +
+            "                </td>\n" +
+            "                <td class=\"code\">\n" +
+            "                    <pre><code class=\"" + LANG.toLowerCase() + "\">" + CODE + "</code></pre>\n" +
+            "                </td>\n" +
+            "            </tr>\n" +
+            "        </tbody>\n" +
+            "    </table>\n" +
+            "</div>\n"
+        ;
+        document.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightBlock(block);
+        });
+    }, false);
+</script>
+</body>
+</html>
