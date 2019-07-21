@@ -4,96 +4,111 @@
     <title>Terminal Highlight</title>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="hightlight/monokai.css">
+    <link rel="stylesheet" href="ele/index.css">
     <link rel="stylesheet" href="terminal.css">
+    <script src="ele/vue.js"></script>
     <script src="hightlight/highlight.pack.js"></script>
-    <script src="html2canvas.min.js"></script>
+    <script src="ele/index.js"></script>
+    <script src="dom-to-image.min.js"></script>
 </head>
 <body>
-<div class="box">
-    <div class="left">
-        <div style="width: 100%;">
-            <textarea id="source_code" rows="20" style="width: 100%"></textarea>
-            <button onclick="export_img()">导出图片</button>
-        </div>
-    </div>
-    <div class="right">
-        <div id="format_code" style="width: 100%;color: rgba(255, 255, 255, 0);"></div>
-    </div>
+
+
+<div id="app">
+    <el-row>
+        <el-col :span="12">
+            <el-input type="textarea" :rows="20" placeholder="请输入Markdown格式代码块" v-model="code"></el-input>
+        </el-col>
+
+        <el-col :span="12">
+            <el-card class="box-card" v-show="codeVisible" style="margin-bottom: 10px;">
+                <div ref="formatCode"></div>
+            </el-card>
+            <el-button type="default" @click="exportImg" style="margin-left: 10px;">导出图片<i class="el-icon-printer el-icon--right"></i></el-button>
+        </el-col>
+    </el-row>
+
+    <el-dialog title="导出预览" :visible.sync="dialogVisible">
+        <img id="codeImg" src=""/>
+        <span slot="footer" class="dialog-footer">
+            <el-button @click="dialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="downloadImg">下 载</el-button>
+        </span>
+    </el-dialog>
 </div>
-<dialog id="img"></dialog>
+
 <script>
-    function export_img() {
-        html2canvas(document.querySelector(".highlight-wrap"), {
-            backgroundColor: null
-        }).then(canvas => {
-            var context = canvas.getContext("2d");
+    new Vue({
+        el: '#app',
+        watch: {
+            code(newVal, oldVal) {
+                // 获取代码信息
+                let LANG = "";
+                let CODE = "";
+                if (newVal.startsWith("```") && newVal.endsWith("```")) {
+                    LANG = newVal.substring(3, newVal.indexOf("\n"));
+                    CODE = newVal.substring(newVal.indexOf("\n") + 1, newVal.lastIndexOf("```"));
+                } else {
+                    this.codeVisible = false;
+                    return;
+                }
 
-            //圆角矩形
-            CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-                var min_size = Math.min(w, h);
-                if (r > min_size / 2) r = min_size / 2;
-                // 开始绘制
-                this.beginPath();
-                this.moveTo(x + r, y);
-                this.arcTo(x + w, y, x + w, y + h, r);
-                this.arcTo(x + w, y + h, x, y + h, r);
-                this.arcTo(x, y + h, x, y, r);
-                this.arcTo(x, y, x + w, y, r);
-                this.closePath();
-                return this;
-            };
+                // 构造左侧行号
+                let indexEle = "";
+                for (let index = 1; index < CODE.split("\n").length; index++) {
+                    indexEle += "<span>" + index + "</span><br>";
+                }
 
-            image = new Image();
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            context.roundRect(0, 0, image.width, image.height, 50);
-            context.fillStyle = context.createPattern(image, "no-repeat");
-            context.fill();
+                // 创建document
+                this.$refs.formatCode.innerHTML =
+                    "<div class=\"highlight-wrap\" data-rel=\"" + LANG.toUpperCase() + "\">\n" +
+                    "    <table>\n" +
+                    "        <tbody>\n" +
+                    "            <tr>\n" +
+                    "                <td class=\"gutter\">\n" +
+                    "                    <pre>" + indexEle + "</pre>\n" +
+                    "                </td>\n" +
+                    "                <td class=\"code\">\n" +
+                    "                    <pre><code class=\"" + LANG.toLowerCase() + "\">" + CODE + "</code></pre>\n" +
+                    "                </td>\n" +
+                    "            </tr>\n" +
+                    "        </tbody>\n" +
+                    "    </table>\n" +
+                    "</div>\n"
+                ;
 
-            document.getElementById("img").appendChild(canvas);
-            document.getElementById("img").open = true;
-        });
-    }
+                document.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightBlock(block);
+                });
 
-    document.getElementById("source_code").addEventListener("input", function () {
-        txt = document.getElementById("source_code").value;
-
-        // 获取代码信息
-        let LANG = "";
-        let CODE = "";
-        if (txt.startsWith("```") && txt.endsWith("```")) {
-            LANG = txt.substring(3, txt.indexOf("\n"));
-            CODE = txt.substring(txt.indexOf("\n") + 1, txt.lastIndexOf("```"));
-        } else {
-            return;
+                this.codeVisible = true;
+            }
+        },
+        methods: {
+            exportImg() {
+                this.dialogVisible = true;
+                domtoimage.toPng(this.$refs.formatCode).then(function (dataUrl) {
+                    document.getElementById("codeImg").src = dataUrl;
+                }).catch(function (error) {
+                    console.error('oops, something went wrong!', error);
+                });
+            },
+            downloadImg(){
+                this.dialogVisible = false;
+                let link = document.createElement('a');
+                link.download = 'my-code.png';
+                link.href = document.getElementById("codeImg").src;
+                link.click();
+            }
+        },
+        data() {
+            return {
+                code: '',
+                codeVisible: false,
+                dialogVisible: false,
+            }
         }
-
-        // 构造左侧行号
-        let index_ele = "";
-        for (let index = 1; index < CODE.split("\n").length; index++) {
-            index_ele += "<span>" + index + "</span><br>";
-        }
-
-        // 创建document
-        document.getElementById("format_code").innerHTML =
-            "<div class=\"highlight-wrap\" data-rel=\"" + LANG.toUpperCase() + "\">\n" +
-            "    <table>\n" +
-            "        <tbody>\n" +
-            "            <tr>\n" +
-            "                <td class=\"gutter\">\n" +
-            "                    <pre>" + index_ele + "</pre>\n" +
-            "                </td>\n" +
-            "                <td class=\"code\">\n" +
-            "                    <pre><code class=\"" + LANG.toLowerCase() + "\">" + CODE + "</code></pre>\n" +
-            "                </td>\n" +
-            "            </tr>\n" +
-            "        </tbody>\n" +
-            "    </table>\n" +
-            "</div>\n"
-        ;
-        document.querySelectorAll('pre code').forEach((block) => {
-            hljs.highlightBlock(block);
-        });
-    }, false);
+    });
 </script>
 </body>
 </html>
